@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  api:
+    container_name: micro-backend
+    restart: always
+    env_file: .env
+    environment:
+      - DB_HOST=mysql_server
+      - DB_USER=$MYSQLDB_USER
+      - DB_PASSWORD=$MYSQLDB_ROOT_PASSWORD
+      - DB_NAME=$MYSQLDB_DATABASE
+      - DB_PORT=$MYSQLDB_DOCKER_PORT
+    stdin_open: true
+    tty: true
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    ports:
+      - $NODE_LOCAL_PORT:$NODE_DOCKER_PORT
+    depends_on:
+      - mysql_server
+    volumes:
+      - ./src:/usr/app/src
+    command: npm run dev
+
+  mysql_server:
+    image: mysql:5.7
+    container_name: micro-database
+    restart: unless-stopped
+    env_file: ./.env
+    environment:
+      - MYSQL_ROOT_PASSWORD=$MYSQLDB_ROOT_PASSWORD
+      - MYSQL_DATABASE=$MYSQLDB_DATABASE
+    ports:
+      - $MYSQLDB_LOCAL_PORT:$MYSQLDB_DOCKER_PORT
+    volumes:
+      - db:/var/lib/mysql
+volumes:
+  db:
