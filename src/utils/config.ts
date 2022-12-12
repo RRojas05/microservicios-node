@@ -9,6 +9,7 @@ export default {
     whiteList:['http://yourapp.com']
   },
   mysql: {
+    connectionLimit:10 as number,
     host: process.env.DB_HOST || '',
     user: process.env.DB_USER || '',
     password: process.env.DB_PASSWORD || '',

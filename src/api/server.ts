@@ -1,11 +1,12 @@
-import express, { Application } from 'express';
-import config from '../config';
+import express, { Application, query } from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 import auth from './components/routes/auth.route';
 import user from './components/routes/user.route';
 import { errorsHandler } from '../utils/errors';
+import config from '../utils/config';
 
+import { db } from './store/mysql';
 export class Server {
   private app: Application;
   private port: string;
@@ -14,12 +15,14 @@ export class Server {
     auth: '/api/auth',
     users: '/api/users',
   };
+  private store
   constructor() {
     this.app = express();
     this.port = config.api.port;
 
     this.middlewares();
     this.routes();
+    this.store= db
   }
 
   private routes = () => {
@@ -27,57 +30,23 @@ export class Server {
     this.app.use(this.apiPaths.users, user);
   };
 
-  private middlewares = () => {
-    // const corsOptions = {
-    //   origin: function (origin, callback) {
-    //     if (config.cors.whiteList.indexOf(origin) !== -1) {
-    //       callback(null, true)
-    //     } else {
-    //       callback(new Error('Not allowed by CORS'))
-    //     }
-    //   }
-    // }
+  private checkDb=async ()=>{
+    return await this.store.check()
+  }
 
+  private middlewares = () => {
     this.app.use(morgan('dev'));
     this.app.use(express.json());
-    // this.app.use(cors({
-    //   origin: config.cors.whiteList,
-    //   credentials: true,
-    //   methods:['POST']
-    // }));
-
-    this.app.use(
-      cors({
-        origin: function (origin, callback) {
-          // allow requests with no origin
-          // (like mobile apps or curl requests)
-          if (!origin) {
-
-            console.log('-> if')
-            return callback(null, true);
-          } else {
-            console.log('-> else')
-          }
-          if (config.cors.whiteList.indexOf(origin) === -1) {
-            var msg =
-              'The CORS policy for this site does not ' +
-              'allow access from the specified Origin.';
-
-            console.log('The CORS policy for this site does not');
-            return callback(new Error(msg), false);
-          }
-          console.log('cors NEXT');
-          return callback(null, true);
-        },
-      })
-    );
-    // this.app.use(cors)
+    this.app.use(cors());
     this.app.use(errorsHandler.errorMessage);
   };
 
-  public listen() {
-    this.app.listen(this.port, () => {
-      console.log(`server listen on port ${this.port}`);
-    });
-  }
+  public listen = async () => {
+
+    if(await this.checkDb()){
+      this.app.listen(this.port, () => {
+        console.log(`server listen on port ${this.port}`);
+      });
+    }
+  };
 }

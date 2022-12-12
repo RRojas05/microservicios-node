@@ -6,6 +6,16 @@ import { UserModel } from '../../models/user.model';
 
 const router = Router();
 
+const getUsers = (req: Request, res: Response, next: NextFunction) => {
+  Controller.getUsers()
+    .then((list) => {
+      responseNet.success(req, res, JSON.stringify(list), 200);
+    })
+    .catch((err) => {
+      responseNet.error(req, res, err.message, 500);
+    });
+};
+
 const getUserByEmail = (req: Request, res: Response, next: NextFunction) => {
   const { email } = req.params;
 
@@ -20,19 +30,11 @@ const getUserByEmail = (req: Request, res: Response, next: NextFunction) => {
     .catch(next)
 };
 
-const getUsers = (req: Request, res: Response, next: NextFunction) => {
-  Controller.getUsers()
-    .then((list) => {
-      responseNet.success(req, res, JSON.stringify(list), 200);
-    })
-    .catch((err) => {
-      responseNet.error(req, res, err.message, 500);
-    });
-};
-
 const createUser = (req: Request, res: Response, next: NextFunction) => {
-  Controller.create(req.body)
+  Controller.createUser(req.body)
     .then((user) => {
+
+      console.log(`create user route: ${JSON.stringify(user)}`)
       if (user) {
         responseNet.success(req, res, JSON.stringify(user), 200);
       } else {
@@ -42,8 +44,17 @@ const createUser = (req: Request, res: Response, next: NextFunction) => {
     .catch(next)
 };
 
-const updateUser=()=>{
-  console.log('update user')
+const updateUser=(req: Request, res: Response, next: NextFunction)=>{
+  const data= req.body
+  Controller.updateUser(data)
+  .then((state)=>{
+    if(state){
+      responseNet.success(req, res, 'The user was update successfully', 200);
+    }else{
+      responseNet.success(req, res, 'User not found', 404);
+    }
+  })
+  .catch(next)
 }
 
 const deleteUserByEmail= (req:Request, res: Response, next: NextFunction)=>{
@@ -66,7 +77,8 @@ router.post('/', createUser);
 
 let userSecure= new UserSecure('update');
 
-router.put('/:id', userSecure.middlewarwe ,updateUser);
+// router.put('/:id', userSecure.middlewarwe ,updateUser);
+router.put('/:id',updateUser);
 router.delete('/:email', deleteUserByEmail);
 
 export default router;

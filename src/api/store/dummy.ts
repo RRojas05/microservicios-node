@@ -2,7 +2,7 @@ import { errorsHandler } from '../../utils/errors';
 import { SecurityModel } from '../models/security.model';
 import { UserModel } from '../models/user.model';
 
-class DB {
+class DBDummy {
   users: UserModel[] = [];
   auth: SecurityModel[] = [];
 
@@ -110,4 +110,4 @@ class DB {
   };
 }
 
-export { DB };
+export { DBDummy };

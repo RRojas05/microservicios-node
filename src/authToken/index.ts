@@ -1,7 +1,7 @@
 import { Request } from 'express-serve-static-core';
 import { sign, verify } from 'jsonwebtoken';
 import { errorsHandler } from '../utils/errors';
-import config from '../config';
+import config from '../utils/config';
 
 class AuthToken {
   public sing = (data: object) => {

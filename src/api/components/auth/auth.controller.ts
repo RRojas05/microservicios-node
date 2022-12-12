@@ -1,21 +1,21 @@
 import bcrypt from 'bcrypt';
-import { DB } from '../../store/dummy';
+import { DBDummy } from '../../store/dummy';
 import { SecurityModel } from '../../models/security.model';
 import { AuthToken } from '../../../authToken';
 import { UserModel } from '../../models/user.model';
 import { errorsHandler } from '../../../utils/errors';
 
-let store = new DB();
+let storeDummy = new DBDummy();
 let authToken = new AuthToken();
 
 class AuthController {
   TABLE: string = 'auth';
   injectedStore = {};
 
-  constructor(injectedStore: typeof store | false) {}
+  constructor(injectedStore: typeof storeDummy | false) {}
 
   public login = async (email: string, password: string) => {
-    const data = await store.dbQuery(this.TABLE, { email: email });
+    const data = await storeDummy.dbQuery(this.TABLE, { email: email });
 
     return bcrypt.compare(password, data.password).then((result)=>{
       if(result){
@@ -39,7 +39,7 @@ class AuthController {
       email: data.email,
       password: cryptPassword,
     };
-    return store.authCreate(this.TABLE, auth);
+    return storeDummy.authCreate(this.TABLE, auth);
   };
 }
 
