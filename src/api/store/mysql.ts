@@ -1,109 +1,194 @@
 import mysql from 'mysql';
 import config from '../../utils/config';
 import { querys } from '../../utils/querys';
+import { SecurityModel, SecurityTables } from '../models/security.model';
 import { UserModel } from '../models/user.model';
+
+interface mysqlResult {
+  fieldCount: number;
+  affectedRows: number;
+  insertId: number;
+  serverStatus: number;
+  warningCount: number;
+  message: string;
+  protocol41: boolean;
+  changedRows: number;
+}
+
 class DB {
+  dbPool: mysql.Pool;
   constructor() {
-    console.log('-> DB constructor');
+    this.dbPool = mysql.createPool(this.dbconfig());
   }
 
   private dbconfig = () => {
     return config.mysql;
   };
 
-  private connect = async () => {
-    return new Promise<mysql.Connection>((resolve, reject) => {
-      const connection = mysql.createConnection(this.dbconfig());
-
-      connection.connect((err) => {
+  public attemptConnection = (query: string) => {
+    return new Promise<Array<any>>((resolve, reject) => {
+      this.dbPool.getConnection((err, connection) => {
         if (err) {
-          reject(err);
-          return;
-        }
+          setTimeout(this.attemptConnection, 2000);
+        } else {
+          connection.query(query, (errQuery, results) => {
+            connection.release();
 
-        resolve(connection);
+            if (errQuery) {
+              reject(errQuery);
+            } else {
+              resolve(results);
+            }
+          });
+        }
       });
+    });
+  };
+
+  public validateTables = async (): Promise<boolean> => {
+    return new Promise(async (resolve, reject) => {
+      await this.attemptConnection(querys.getTables)
+        .then((results) => {
+          if (results.length === 0) {
+            console.log(`-> DB construct`);
+            this.createTables()
+              .then((result) => resolve(result))
+              .catch(() => {
+                reject(false);
+              });
+          } else {
+            console.log(`DB continue...`);
+            resolve(true);
+          }
+        })
+        .catch((err) => {
+          reject(false)
+          console.log(`DB validate promise: ${err}`)
+        });
+    });
+  };
+
+  private createTables = async (): Promise<boolean> => {
+    return new Promise(async (resolve, reject) => {
+      let tablesSuccess: boolean = true;
+      const querysStack: Array<string> = [
+        querys.createUserTable,
+        querys.createAuthTable,
+        querys.createUserFollowTable,
+        querys.createIndexs,
+      ];
+
+      for (const query of querysStack) {
+        await this.attemptConnection(query).catch((err) => {
+          tablesSuccess = false;
+          reject(false);
+        });
+      }
+      console.log(`DB construction success...`);
+      resolve(tablesSuccess);
     });
   };
 
   public getUser = async (
     table: string,
     email: string
-  ): Promise<UserModel | false> => {
+  ): Promise<Array<UserModel>> => {
     return new Promise((resolve, reject) => {
       const query = querys.getByEmail(table, email);
-      this.connect()
-        .then((connection) => {
-          connection.query(query, connection, (error, result) => {
-            if (error) {
-              reject(error);
-              return;
-            }
 
-            if (result instanceof Array) {
-              if (result.length === 0) {
-                resolve(false);
-              } else {
-                resolve(result[0]);
-              }
-            }
-            connection.end();
-          });
+      this.attemptConnection(query)
+        .then((result) => {
+          resolve(result);
         })
-        .catch((err) => console.log(`DB get user: ${err}`));
+        .catch((err) => {
+          console.log(`DB get user: ${err}`);
+          reject(false);
+        });
+    });
+  };
+
+  public createUser = async (
+    table: string,
+    user: UserModel
+  ): Promise<UserModel | boolean> => {
+    return new Promise(async (resolve, reject) => {
+      const findUser = await this.getUser(table, user.email);
+
+      if (!findUser.length) {
+        const query = querys.createUser(table, user);
+        this.attemptConnection(query).then((result) => {
+          if (result) {
+            resolve(user);
+          }
+        });
+      } else {
+        resolve(false);
+      }
+    });
+  };
+
+  public authCreate = async (
+    table: string,
+    data: SecurityModel
+  ): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      const query = querys.createAuth(table, data);
+
+      this.attemptConnection(query)
+        .then((result) => {
+          if (result) {
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        })
+        .catch((err) =>{
+          console.log(`DB auth create: ${err}`)
+          reject(false)
+        });
     });
   };
 
   public getUsers = (table: string): Promise<Array<UserModel>> => {
     return new Promise((resolve, reject) => {
-
-      // if(data as UserModel){
-      //   console.log('tipo user model')
-      // }else{
-      //   console.log('tipo security model')
-      // }
-
       const query = querys.getAll(table);
-      this.connect()
-        .then((connection) => {
-          connection.query(query, connection, (error, result) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve(result);
-            connection.end();
-          });
+      this.attemptConnection(query)
+        .then((result) => {
+          resolve(result);
         })
-        .catch((err) => console.log(`DB get users: ${err}`));
+        .catch((err) => {
+          reject(false);
+          console.log(`DB get users: ${err}`);
+        });
     });
   };
 
-  public create = async (
+  public removeUser = async (
     table: string,
-    user: UserModel
-  ): Promise<UserModel|false> => {
+    email: string
+  ): Promise<boolean> => {
     return new Promise(async (resolve, reject) => {
-      const findUser = await this.getUser(table, user.email);
-
-      if (!findUser) {
-        const createQuery = querys.createUser(table, user);
-
-        this.connect()
-          .then((connection) => {
-            connection.query(createQuery, connection, (error, result) => {
-              if (error) {
-                reject(error);
-                return;
-              }
-
-              resolve(user);
-              connection.end();
-            });
-          })
-          .catch((err) => console.log(`DB create user: ${err}`));
-      } else {
+      const findUser = await this.getUser(table, email);
+      if (!findUser.length) {
         resolve(false);
+      } else {
+        const query = querys.delete(table, findUser[0].id);
+
+        this.attemptConnection(query)
+          .then((result) => {
+            resolve(true);
+
+            const myResult = result as unknown as mysqlResult;
+            if (myResult.affectedRows === 1) {
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          })
+          .catch((err) => {
+            reject(false);
+            console.log(`DB remove users err: ${err}`);
+          });
       }
     });
   };
@@ -113,120 +198,29 @@ class DB {
     data: UserModel
   ): Promise<UserModel | false> => {
     return new Promise(async (resolve, reject) => {
+      console.log(`update data ${JSON.stringify(data)}`);
 
       const findUser = await this.getUser(table, data.email);
-      if (findUser) {
-        const query = querys.updateUser(table, { ...findUser, ...data });
-        this.connect()
-          .then((connection) => {
-            connection.query(query, connection, (error, result) => {
-              if (error) {
-                reject(error);
-                return;
-              }
 
-              resolve({ ...findUser, ...data });
-              connection.end();
-            });
-          })
-          .catch((err) => console.log(`DB update user: ${err}`));
-      } else {
+      if (!findUser.length) {
         resolve(false);
-      }
-    });
-  };
+      } else {
+        const query = querys.updateUser(table, { ...findUser[0], ...data });
+        this.attemptConnection(query)
+          .then((result) => {
 
-  public removeUser = async (
-    table: string,
-    email: string
-  ): Promise<true | false> => {
-    return new Promise((resolve, reject) => {
-      const query = querys.deleteByEmail(table, email);
-      this.connect()
-        .then((connection) => {
-          connection.query(query, connection, (error, result) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-
-            if (result.affectedRows === 0) {
-              resolve(false);
+            const myResult = result as unknown as mysqlResult;
+            if (myResult.affectedRows === 1) {
+              resolve({ ...findUser, ...data });
             } else {
-              resolve(true);
+              resolve(false);
             }
-            connection.end();
+          })
+          .catch((err) => {
+            reject(false);
+            console.log(`DB update users err: ${err}`);
           });
-        })
-        .catch((err) => console.log(`DB remove user: ${err}`));
-    });
-  };
-
-
-  // public authCreate = async (tableName: string, data: SecurityModel) => {
-  //   let table = await this.getTable(tableName);
-  //   const register = table.find((item: SecurityModel) => item.id === data.id);
-
-  //   if (register === undefined) {
-  //     table.push(data);
-  //     return data;
-  //   } else {
-  //     return false;
-  //   }
-  // };
-
-  public check = (): Promise<true | false> => {
-    return new Promise((resolve, reject) => {
-      this.connect()
-        .then((connection) => {
-          connection.query(
-            querys.getTables,
-            connection,
-            async (error, result) => {
-              if (error) {
-                reject(error);
-                return;
-              }
-              if (result.length === 0) {
-                console.log('make tables...');
-                const initDB = await this.init();
-                resolve(initDB);
-              } else {
-                console.log('continue...');
-                resolve(true);
-              }
-
-              connection.end();
-            }
-          );
-        })
-        .catch((err) => console.log(`DB check: ${err}`));
-    });
-  };
-
-  private init = (): Promise<true | false> => {
-    return new Promise((resolve, reject) => {
-      this.connect()
-        .then((connection) => {
-          connection.query(querys.createUserTable, (error, result) => {
-            if (error) {
-              reject(error);
-              return false;
-            }
-          });
-
-          connection.query(querys.createAuthTable, (error, result) => {
-            if (error) {
-              reject(error);
-              return false;
-            }
-          });
-
-          console.log('DB init success...');
-          resolve(true);
-          connection.end();
-        })
-        .catch((err) => console.log(`DB init: ${err}`));
+      }
     });
   };
 }

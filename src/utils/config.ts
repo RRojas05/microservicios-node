@@ -15,4 +15,9 @@ export default {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || '',
   },
+  tables:{
+    users: 'users',
+    auth: 'auth',
+    follow: 'user_follow'
+  }
 };

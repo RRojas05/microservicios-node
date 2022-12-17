@@ -31,7 +31,9 @@ export class Server {
   };
 
   private checkDb=async ()=>{
-    return await this.store.check()
+    return await this.store.validateTables()
+    .then(result=> {return result})
+    .catch(()=>{return false})
   }
 
   private middlewares = () => {
@@ -47,6 +49,8 @@ export class Server {
       this.app.listen(this.port, () => {
         console.log(`server listen on port ${this.port}`);
       });
+    }else{
+      console.log(`DB create error, server down`)
     }
   };
 }
