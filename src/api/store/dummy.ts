@@ -3,7 +3,15 @@ import { SecurityModel } from '../models/security.model';
 import { UserModel } from '../models/user.model';
 
 class DBDummy {
-  users: UserModel[] = [];
+  defaultUser: UserModel={
+    "id": '491b820e-8701-4858-bd1d-8dd0995bb26e',
+    "email": "roberto@gmail.com",
+    "name": "Roberto Rojas",
+    "user_name": "Jaster",
+    "password": "12345",
+    "age": 30
+  }
+  users: UserModel[] = [this.defaultUser];
   auth: SecurityModel[] = [];
 
   db = {

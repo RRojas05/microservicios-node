@@ -3,8 +3,4 @@ interface SecurityModel{
   password: string
 }
 
-interface SecurityTables{
-  users: string,
-  auth: string
-}
-export {SecurityModel, SecurityTables};
+export {SecurityModel};
